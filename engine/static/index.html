@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AIPerf 压测可视化</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23050505'/%3E%3Cpath d='M7 21a9 9 0 1 1 18 0' fill='none' stroke='%23e5e7eb' stroke-width='2.4' stroke-linecap='round'/%3E%3Cpath d='M16 21l6-9' stroke='%2376B900' stroke-width='2.4' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='21' r='2' fill='%2376B900'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #000; --card: #050505; --line: rgba(255,255,255,.13);
+    --line2: rgba(255,255,255,.08); --txt: #fff; --sub: #9ca3af; --sub2: #6b7280;
+    --ok: #34d399; --bad: #f87171; --warn: #fbbf24; --run: #60a5fa; --imp: #c084fc;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--txt);
+    font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 14px; line-height: 1.5; padding: 28px 32px 60px;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+  header { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; margin-bottom: 6px; flex-wrap: wrap; }
+  .head-left { display: flex; align-items: center; gap: 12px; }
+  .head-left .logo { width: 32px; height: 32px; flex: 0 0 auto; }
+  header h1 { font-size: 22px; font-weight: 700; letter-spacing: .5px; }
+  header .svc { color: var(--sub); font-size: 12px; }
+  header .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); margin-right: 5px; }
+  .head-right { text-align: right; }
+  .head-right .tagline { color: var(--sub); font-size: 12px; margin-bottom: 6px; }
+  .gh-link {
+    display: inline-flex; align-items: center; gap: 6px;
+    color: #e5e7eb; font-size: 12px; font-weight: 600; text-decoration: none;
+    border: 1px solid var(--line); border-radius: 999px; padding: 5px 14px;
+  }
+  .gh-link svg { width: 14px; height: 14px; fill: currentColor; }
+  .gh-link:hover { border-color: rgba(255,255,255,.45); color: #fff; }
+  .hint { color: var(--sub2); font-size: 12px; margin-bottom: 22px; }
+  .layout { display: grid; grid-template-columns: 400px 1fr; gap: 24px; align-items: start; }
+  @media (max-width: 1000px) { .layout { grid-template-columns: 1fr; } }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
+  .card h2 { font-size: 14px; font-weight: 600; color: var(--txt); margin-bottom: 12px; }
+  fieldset { border: none; margin-bottom: 14px; }
+  fieldset legend { font-size: 12px; color: var(--sub); margin-bottom: 8px; font-weight: 600; letter-spacing: .3px; }
+  label { display: block; font-size: 12px; color: var(--sub); margin: 8px 0 4px; }
+  input[type=text], input[type=password], input[type=number], select, textarea {
+    width: 100%; background: #101012; border: 1px solid var(--line); border-radius: 8px;
+    color: var(--txt); padding: 8px 10px; font-size: 13px; outline: none;
+    font-family: inherit;
+  }
+  input:focus, select:focus, textarea:focus { border-color: rgba(255,255,255,.35); }
+  textarea { resize: vertical; min-height: 40px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  .chk { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--txt); margin-top: 10px; cursor: pointer; }
+  .chk input { accent-color: #fff; width: 15px; height: 15px; }
+  .btns { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+  button { cursor: pointer; border-radius: 8px; font-size: 13px; font-weight: 600; font-family: inherit; border: 1px solid var(--line); background: transparent; color: var(--txt); padding: 9px 16px; }
+  button.primary { background: #fff; color: #000; border-color: #fff; }
+  button.primary:disabled { background: #444; border-color: #444; color: #888; cursor: not-allowed; }
+  button.danger { color: var(--bad); border-color: rgba(248,113,113,.4); display: none; }
+  button.ghost { color: var(--sub); font-weight: 400; padding: 6px 12px; font-size: 12px; }
+  button:hover { border-color: rgba(255,255,255,.4); }
+  .presets { display: flex; gap: 8px; margin-top: 14px; }
+  .modelrow { display: flex; gap: 8px; }
+  .modelrow select { flex: 1; min-width: 0; }
+  .modelrow button { white-space: nowrap; }
+  .modelrow button:disabled { color: var(--sub2); cursor: wait; }
+
+  /* 运行状态条 */
+  .statusbar { display: none; align-items: center; gap: 12px; margin-bottom: 14px; padding: 12px 18px; }
+  .statusbar.show { display: flex; }
+  .badge { padding: 2px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .badge.running { color: var(--run); background: rgba(96,165,250,.12); animation: pulse 1.4s infinite; }
+  .badge.completed, .badge.completed_with_error { color: var(--ok); background: rgba(52,211,153,.12); }
+  .badge.failed { color: var(--bad); background: rgba(248,113,113,.12); }
+  .badge.cancelled, .badge.interrupted { color: var(--warn); background: rgba(251,191,36,.12); }
+  .badge.imported { color: var(--imp); background: rgba(192,132,252,.12); }
+  @keyframes pulse { 50% { opacity: .55; } }
+  .statusbar .meta { color: var(--sub); font-size: 12px; }
+
+  /* 仪表盘（截图同款） */
+  #dash { display: none; }
+  #dash.show { display: block; }
+  .cards2 { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-bottom: 30px; }
+  @media (max-width: 700px) { .cards2 { grid-template-columns: 1fr; } }
+  .bigcard { border: 1px solid var(--line); border-radius: 16px; padding: 20px 24px; background: var(--card); }
+  .bigcard .t { font-size: 15px; color: #e5e7eb; margin-bottom: 12px; }
+  .bigcard .v { font-size: 44px; font-weight: 600; letter-spacing: 1px; line-height: 1.15; }
+  .bigcard .s { font-size: 13px; color: var(--sub); margin-top: 10px; }
+  .top3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 26px; padding: 0 4px; }
+  .top3 .lbl { font-size: 13px; color: var(--sub); margin-bottom: 10px; }
+  .top3 .val { font-size: 27px; font-weight: 600; }
+  .note { color: var(--sub); font-size: 13px; margin: 4px 0 34px; }
+  .sec-title { font-size: 17px; font-weight: 700; margin-bottom: 14px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 15px; font-weight: 700; padding: 10px 2px; border-bottom: 1px solid var(--line); }
+  th:last-child, td:last-child { text-align: right; }
+  td { padding: 11px 2px; border-bottom: 1px solid var(--line2); font-size: 14px; color: #d1d5db; }
+  td.v { color: #fff; font-weight: 600; }
+  details { margin-top: 26px; }
+  details summary { cursor: pointer; color: var(--sub); font-size: 13px; margin-bottom: 10px; }
+  details summary:hover { color: var(--txt); }
+  .foot { color: var(--sub2); font-size: 11px; margin-top: 18px; word-break: break-all; }
+
+  /* 日志 */
+  #logwrap { display: none; margin-top: 16px; }
+  #logwrap.show { display: block; }
+  #log {
+    background: #0a0a0b; border: 1px solid var(--line2); border-radius: 10px;
+    font: 12px/1.6 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    color: #d1d5db; padding: 12px 14px; max-height: 240px; overflow-y: auto;
+    white-space: pre-wrap; word-break: break-all;
+  }
+
+  /* 历史记录 */
+  .hist { margin-top: 34px; }
+  .hist table td, .hist table th { font-size: 13px; padding: 9px 8px; }
+  .hist tr.click { cursor: pointer; }
+  .hist tr.click:hover td { background: rgba(255,255,255,.03); }
+  .hist td.empty { color: var(--sub2); text-align: center; padding: 26px; }
+  .impbox { display: flex; gap: 8px; margin-top: 12px; }
+  .impbox input { flex: 1; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="head-left">
+      <svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
+        <rect width="32" height="32" rx="7" fill="#0d0d0f" stroke="rgba(255,255,255,.16)"/>
+        <path d="M7 21a9 9 0 1 1 18 0" fill="none" stroke="#e5e7eb" stroke-width="2.4" stroke-linecap="round"/>
+        <path d="M9.5 16.2l1.4 1M16 13.6V15M22.5 16.2l-1.4 1" stroke="#6b7280" stroke-width="1.4" stroke-linecap="round"/>
+        <path d="M16 21l6-9" stroke="#76B900" stroke-width="2.4" stroke-linecap="round"/>
+        <circle cx="16" cy="21" r="2" fill="#76B900"/>
+      </svg>
+      <h1>AIPerf 压测可视化</h1>
+      <span class="svc"><span class="dot" id="svcdot"></span><span id="svcver">检测服务…</span></span>
+    </div>
+    <div class="head-right">
+      <div class="tagline">采用业内认可度最高的 NVIDIA GenAI-Perf 作为测试后端</div>
+      <a class="gh-link" href="https://github.com/ai-dynamo/aiperf" target="_blank" rel="noopener" title="https://github.com/ai-dynamo/aiperf">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+        开源地址：ai-dynamo/aiperf
+      </a>
+    </div>
+  </header>
+  <div class="hint">填入参数 → 发起测试 → 自动解析报告并展示指标。数据口径：Prefill/Decode 服务端速率来自 vLLM 指标，其余来自 AIPerf 客户端报告。</div>
+
+  <div class="layout">
+    <!-- 表单 -->
+    <div class="card">
+      <h2>测试参数</h2>
+      <fieldset>
+        <legend>目标服务</legend>
+        <label>服务地址 (base URL)</label>
+        <input type="text" id="url" placeholder="http://host:port">
+        <label>API Key</label>
+        <input type="password" id="apiKey">
+        <div class="row2">
+          <div><label>Endpoint 类型</label>
+            <select id="endpointType"><option value="chat">chat</option><option value="completions">completions</option></select>
+          </div>
+          <div><label>Tokenizer 路径</label>
+            <input type="text" id="tokenizer">
+          </div>
+        </div>
+        <label class="chk"><input type="checkbox" id="streaming" checked> Streaming 流式请求</label>
+        <label class="chk"><input type="checkbox" id="useServerTokenCount" checked> 使用服务端 token 计数</label>
+        <label>模型名称</label>
+        <div class="modelrow">
+          <select id="model"><option value="">— 点击「获取模型」加载 —</option></select>
+          <button class="ghost" id="btnFetch" onclick="fetchModels()">↻ 获取模型</button>
+        </div>
+        <label>/metrics 地址（可选，用于 Prefill/Decode 服务端速率）</label>
+        <input type="text" id="serverMetrics" placeholder="http://host:port/metrics">
+      </fieldset>
+
+      <fieldset>
+        <legend>负载</legend>
+        <div class="row2">
+          <div><label>并发数</label><input type="number" id="concurrency" min="1" step="1"></div>
+          <div><label>请求数</label><input type="number" id="requestCount" min="1" step="1"></div>
+          <div><label>输入长度均值 (tokens)</label><input type="number" id="islMean" min="1"></div>
+          <div><label>输入长度标准差</label><input type="number" id="islStddev" min="0" value="0"></div>
+          <div><label>输出长度均值 (tokens)</label><input type="number" id="oslMean" min="1"></div>
+          <div><label>输出长度标准差</label><input type="number" id="oslStddev" min="0" value="0"></div>
+        </div>
+        <label>语料类型（合成输入的内容来源）</label>
+        <select id="promptCorpus">
+          <option value="sonnet">文本 · 莎士比亚语料（默认）</option>
+          <option value="coding">代码 · code / bash / JSON / 报错栈 / git diff</option>
+          <option value="random">随机 token · 对齐 vLLM bench</option>
+        </select>
+        <label>extra-inputs（每行一个 key:value）</label>
+        <textarea id="extraInputs" placeholder="ignore_eos:true"></textarea>
+      </fieldset>
+
+      <div class="btns">
+        <button class="primary" id="btnStart" onclick="startRun()">▶ 发起测试</button>
+        <button class="danger" id="btnCancel" onclick="cancelRun()">✕ 取消测试</button>
+      </div>
+      <div class="presets">
+        <button class="ghost" onclick="applyPreset('full')">预设：默认（4096/512 × 20）</button>
+        <button class="ghost" onclick="applyPreset('quick')">预设：快速验证（256/32 × 2）</button>
+      </div>
+      <div class="impbox">
+        <input type="text" id="importPath" placeholder="导入已有报告目录（含 profile_export_aiperf.json）">
+        <button class="ghost" onclick="importReport()">导入</button>
+      </div>
+    </div>
+
+    <!-- 结果 -->
+    <div>
+      <div class="card statusbar" id="statusbar">
+        <span class="badge" id="statusBadge">—</span>
+        <span class="meta" id="statusMeta"></span>
+        <span class="meta" id="statusErr" style="color:var(--bad)"></span>
+      </div>
+
+      <div id="dash">
+        <div class="cards2">
+          <div class="bigcard"><div class="t" id="cardPLabel">Prefill (P) 服务端阶段平均速率</div><div class="v" id="cardPValue">—</div><div class="s" id="cardPSub"></div></div>
+          <div class="bigcard"><div class="t" id="cardDLabel">Decode (D) 服务端阶段平均速率</div><div class="v" id="cardDValue">—</div><div class="s" id="cardDSub"></div></div>
+        </div>
+        <div class="top3" id="top3"></div>
+        <div class="note">Prefill/Decode 阶段速度根据 vLLM 服务端指标计算；TTFT、单请求耗时和错误率来自 AIPerf 客户端报告。</div>
+        <div class="sec-title">详细指标</div>
+        <table>
+          <thead><tr><th>指标</th><th>实测结果</th></tr></thead>
+          <tbody id="tblRows"></tbody>
+        </table>
+        <details>
+          <summary>更多客户端指标（可选展开）</summary>
+          <table><tbody id="tblExtra"></tbody></table>
+        </details>
+        <div class="foot" id="footMeta"></div>
+      </div>
+
+      <div id="logwrap">
+        <div style="margin:18px 0 8px;font-size:13px;color:var(--sub);font-weight:600">运行日志（实时）</div>
+        <div id="log"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 历史 -->
+  <div class="card hist">
+    <h2>历史记录</h2>
+    <table>
+      <thead><tr><th>时间</th><th>模型</th><th>并发</th><th>请求数</th><th>状态</th><th>Prefill tok/s</th><th>Decode tok/s</th><th>平均 TTFT</th></tr></thead>
+      <tbody id="histRows"><tr><td class="empty" colspan="8">加载中…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let currentRun = null;   // 正在轮询的 run id
+let pollTimer = null;
+let lastRun = null;      // 最近一次发起的 run（用于取消）
+
+// ---------- 预设 ----------
+// 预设只调整负载参数；模型名称 / 服务地址 / API Key 等目标服务信息始终由用户手动填写
+const PRESETS = {
+  full:  { islMean:4096, islStddev:0, oslMean:512, oslStddev:0, extraInputs:'ignore_eos:true',
+           concurrency:1, requestCount:20 },
+  quick: { islMean:256, islStddev:0, oslMean:32, oslStddev:0, extraInputs:'ignore_eos:true',
+           concurrency:1, requestCount:2 }
+};
+function applyPreset(k) { Object.entries(PRESETS[k]).forEach(([k,v]) => setField(k,v)); }
+
+// 页面初始默认值：目标服务信息（模型名称 / 服务地址 / API Key / metrics 地址）默认留空
+function applyBaseDefaults() {
+  setField('model', ''); setField('url', ''); setField('apiKey', ''); setField('serverMetrics', '');
+  setField('endpointType', 'chat');
+  setField('tokenizer', '');  // 由 /api/health 返回的内置 tokenizer 路径填充
+  setField('streaming', true);
+  setField('useServerTokenCount', true);
+  setField('islMean', 4096); setField('islStddev', 0);
+  setField('oslMean', 512); setField('oslStddev', 0);
+  setField('promptCorpus', 'sonnet');
+  setField('extraInputs', 'ignore_eos:true');
+  setField('concurrency', 1); setField('requestCount', 20);
+}
+function setField(k, v) {
+  const el = $(k); if (!el) return;
+  if (el.type === 'checkbox') el.checked = !!v; else el.value = v;
+}
+function getParams() {
+  return {
+    model: $('model').value.trim(), url: $('url').value.trim(), api_key: $('apiKey').value.trim(),
+    endpoint_type: $('endpointType').value, tokenizer: $('tokenizer').value.trim(),
+    streaming: $('streaming').checked, use_server_token_count: $('useServerTokenCount').checked,
+    isl_mean: num($('islMean').value), isl_stddev: num($('islStddev').value),
+    osl_mean: num($('oslMean').value), osl_stddev: num($('oslStddev').value),
+    extra_inputs: $('extraInputs').value,
+    prompt_corpus: $('promptCorpus').value,
+    concurrency: num($('concurrency').value), request_count: num($('requestCount').value),
+    server_metrics: $('serverMetrics').value.trim()
+  };
+}
+function num(v) { const n = Number(v); return isNaN(n) ? 0 : n; }
+
+// ---------- API ----------
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+
+async function health() {
+  try {
+    const j = await api('/api/health');
+    $('svcver').textContent = j.desktop ? `本地引擎运行中 · 离线可用` : `服务运行中 · aiperf: ${j.aiperf_bin}`;
+    if (!$('tokenizer').value && j.default_tokenizer) $('tokenizer').value = j.default_tokenizer;
+    $('svcdot').style.background = j.status === 'ok' ? 'var(--ok)' : 'var(--bad)';
+  } catch { $('svcver').textContent = '服务离线'; $('svcdot').style.background = 'var(--bad)'; }
+}
+
+async function refreshHistory() {
+  const j = await api('/api/runs');
+  const tb = $('histRows');
+  if (!j.runs.length) { tb.innerHTML = '<tr><td class="empty" colspan="8">暂无记录，发起一次测试或导入已有报告</td></tr>'; return; }
+  tb.innerHTML = j.runs.map(r => `
+    <tr class="click" onclick="viewRun('${r.id}')">
+      <td>${esc(r.started_at || '')}</td>
+      <td>${esc(r.model || '—')}</td>
+      <td>${esc(r.concurrency ?? '—')}</td>
+      <td>${esc(r.request_count ?? '—')}</td>
+      <td><span class="badge ${r.status}">${statusText(r.status)}</span></td>
+      <td>${esc(r.prefill_rate)}</td>
+      <td>${esc(r.decode_rate)}</td>
+      <td>${esc(r.ttft)}</td>
+    </tr>`).join('');
+}
+
+function statusText(s) {
+  return {running:'运行中', completed:'已完成', completed_with_error:'完成(有异常)', failed:'失败',
+          cancelled:'已取消', interrupted:'已中断', imported:'导入'}[s] || s;
+}
+function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+// ---------- 获取模型列表 ----------
+async function fetchModels() {
+  const url = $('url').value.trim();
+  if (!url) { alert('请先填写服务地址 (base URL)'); return; }
+  const btn = $('btnFetch'); const old = btn.textContent;
+  btn.textContent = '获取中…'; btn.disabled = true;
+  try {
+    const j = await api('/api/models', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, api_key: $('apiKey').value.trim(), endpoint_type: $('endpointType').value })
+    });
+    const sel = $('model'); const prev = sel.value;
+    sel.innerHTML = '<option value="">— 请选择模型 —</option>' +
+      j.models.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
+    if (prev && j.models.includes(prev)) sel.value = prev;
+    else if (j.models.length === 1) sel.value = j.models[0];
+    if (!j.models.length) alert('服务返回的模型列表为空');
+  } catch (e) {
+    alert('获取模型失败：' + e.message + '\n请检查服务地址 / API Key 是否正确');
+  } finally { btn.textContent = old; btn.disabled = false; }
+}
+
+// ---------- 发起 / 取消 ----------
+async function startRun() {
+  try {
+    const j = await api('/api/run', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(getParams()) });
+    lastRun = j.id; currentRun = j.id;
+    $('log').textContent = ''; $('logwrap').classList.add('show');
+    $('dash').classList.remove('show');
+    showStatus('running');
+    pollTimer = setInterval(poll, 1000);
+    refreshHistory();
+  } catch (e) { alert('发起失败：' + e.message); }
+}
+async function cancelRun() {
+  if (!lastRun) return;
+  if (!confirm('确认取消当前测试？')) return;
+  try { await api(`/api/runs/${lastRun}/cancel`, { method:'POST' }); } catch (e) { alert(e.message); }
+}
+
+// ---------- 轮询 ----------
+async function poll() {
+  if (!currentRun) return;
+  let s;
+  try { s = await api(`/api/runs/${currentRun}`); } catch { return; }
+  showStatus(s);
+  $('log').textContent = s.log_tail || '';
+  const near = $('log').scrollHeight - $('log').scrollTop - $('log').clientHeight < 40;
+  if (near) $('log').scrollTop = $('log').scrollHeight;
+  if (s.status !== 'running') {
+    clearInterval(pollTimer); pollTimer = null;
+    setButtons(false);
+    if (s.result) renderResult(s.result, s);
+    refreshHistory();
+  }
+}
+
+function showStatus(s) {
+  const running = s === 'running' || (s && s.status === 'running');
+  $('statusbar').classList.add('show');
+  $('logwrap').classList.add('show');
+  const st = s === 'running' ? 'running' : s.status;
+  $('statusBadge').className = 'badge ' + st;
+  $('statusBadge').textContent = statusText(st);
+  $('statusErr').textContent = s && s.error ? s.error : '';
+  $('statusMeta').textContent = s && s.id ? `run: ${s.id}` : '';
+  setButtons(running);
+}
+function setButtons(running) {
+  $('btnStart').disabled = running;
+  $('btnCancel').style.display = running ? 'inline-block' : 'none';
+}
+
+// ---------- 渲染结果 ----------
+function renderResult(res, s) {
+  $('dash').classList.add('show');
+  $('cardPValue').textContent = res.cards.prefill.value;
+  $('cardDValue').textContent = res.cards.decode.value;
+  $('cardPSub').textContent = res.cards.prefill.sub;
+  $('cardDSub').textContent = res.cards.decode.sub;
+  $('top3').innerHTML = res.top.map(t => `<div><div class="lbl">${esc(t.label)}</div><div class="val">${esc(t.value)}</div></div>`).join('');
+  $('tblRows').innerHTML = res.rows.map(r => `<tr><td>${esc(r.label)}</td><td class="v">${esc(r.value)}</td></tr>`).join('');
+  $('tblExtra').innerHTML = (res.extra_rows || []).map(r => `<tr><td>${esc(r.label)}</td><td class="v">${esc(r.value)}</td></tr>`).join('');
+  $('footMeta').textContent = `benchmark_id: ${res.benchmark_id || '—'} · aiperf ${res.aiperf_version || ''} · artifacts: ${res.artifacts_dir || ''} · 解析时间: ${res.parsed_at || ''}`;
+}
+
+async function viewRun(rid) {
+  try {
+    const s = await api(`/api/runs/${rid}`);
+    showStatus(s);
+    $('statusMeta').textContent = `run: ${s.id}`;
+    if (s.result) { renderResult(s.result, s); $('logwrap').classList.add('show'); $('log').textContent = s.log_tail || ''; }
+    else $('dash').classList.remove('show');
+  } catch (e) { alert(e.message); }
+}
+
+async function importReport() {
+  const p = $('importPath').value.trim();
+  if (!p) return alert('请填写报告目录路径');
+  try {
+    const j = await api('/api/import', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({path: p}) });
+    showStatus({status:'imported', id:j.id});
+    renderResult(j.result);
+    refreshHistory();
+  } catch (e) { alert('导入失败：' + e.message); }
+}
+
+// ---------- 初始化 ----------
+applyBaseDefaults();
+health();
+refreshHistory();
+</script>
+</body>
+</html>

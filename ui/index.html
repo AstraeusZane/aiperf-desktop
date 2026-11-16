@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>AIPerf 压测可视化</title>
+<style>
+  html, body { height: 100%; margin: 0; background: #000; color: #fff;
+    font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+  .box { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; }
+  svg.logo { width: 72px; height: 72px; }
+  .needle { transform-origin: 16px 21px; animation: sweep 1.6s ease-in-out infinite alternate; }
+  @keyframes sweep { from { transform: rotate(-80deg); } to { transform: rotate(10deg); } }
+  h1 { font-size: 20px; margin: 0; font-weight: 700; }
+  #msg { color: #9ca3af; font-size: 13px; }
+  #err { display: none; max-width: 640px; color: #f87171; font-size: 13px; white-space: pre-wrap;
+    background: #0a0a0b; border: 1px solid rgba(248,113,113,.3); border-radius: 10px; padding: 12px 16px; }
+</style>
+</head>
+<body>
+<div class="box">
+  <svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
+    <rect width="32" height="32" rx="7" fill="#0d0d0f" stroke="rgba(255,255,255,.16)"/>
+    <path d="M7 21a9 9 0 1 1 18 0" fill="none" stroke="#e5e7eb" stroke-width="2.4" stroke-linecap="round"/>
+    <path d="M9.5 16.2l1.4 1M16 13.6V15M22.5 16.2l-1.4 1" stroke="#6b7280" stroke-width="1.4" stroke-linecap="round"/>
+    <g class="needle"><path d="M16 21l6-9" stroke="#76B900" stroke-width="2.4" stroke-linecap="round"/></g>
+    <circle cx="16" cy="21" r="2" fill="#76B900"/>
+  </svg>
+  <h1>AIPerf 压测可视化</h1>
+  <div id="msg">正在启动本地压测引擎…</div>
+  <div id="err"></div>
+</div>
+<script>
+  // 由 Rust 启动器在引擎启动失败时调用
+  window.showError = function (text) {
+    document.getElementById('msg').textContent = '本地引擎启动失败';
+    const e = document.getElementById('err'); e.style.display = 'block'; e.textContent = text;
+  };
+</script>
+</body>
+</html>
