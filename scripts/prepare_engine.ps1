@@ -10,6 +10,9 @@ param(
 )
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
+# Windows 控制台默认 cp1252，aiperf/rich 输出 ≤ 等字符会崩溃 → 强制 UTF-8
+$env:PYTHONUTF8 = "1"
+$env:PYTHONIOENCODING = "utf-8"
 
 $root = Split-Path -Parent $PSScriptRoot
 $out = Join-Path $root "src-tauri/resources/engine"
