@@ -15,7 +15,7 @@ rm -rf "$OUT"; mkdir -p "$OUT"
 # ---- 1. 下载便携 Python ----
 AUTH=()
 [ -n "${GITHUB_TOKEN:-}" ] && AUTH=(-H "Authorization: Bearer $GITHUB_TOKEN")
-URL=$(curl -sSL "${AUTH[@]}" https://api.github.com/repos/astral-sh/python-build-standalone/releases/latest \
+URL=$(curl -sSL ${AUTH[@]+"${AUTH[@]}"} https://api.github.com/repos/astral-sh/python-build-standalone/releases/latest \
   | /usr/bin/python3 -c "
 import json, re, sys
 minor = re.escape(sys.argv[1])
