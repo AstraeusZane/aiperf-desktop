@@ -107,6 +107,8 @@ fn start_engine(app: &AppHandle) -> Result<u16, String> {
         .env_remove("TRANSFORMERS_OFFLINE")
         .env("HF_HUB_DISABLE_TELEMETRY", "1")
         .env("HF_HOME", data.join("hf-cache"))
+        // .pyc 写到数据目录，不改动安装目录（macOS .app 内文件被修改会破坏签名封装）
+        .env("PYTHONPYCACHEPREFIX", data.join("pycache"))
         .current_dir(&data)
         .stdin(Stdio::null())
         .stdout(Stdio::from(log))
@@ -153,6 +155,20 @@ fn stop_engine(app: &AppHandle) {
                 .args(["/PID", pid.as_str(), "/T", "/F"])
                 .creation_flags(CREATE_NO_WINDOW)
                 .status();
+        }
+        #[cfg(unix)]
+        {
+            // 先 SIGTERM，让引擎清理正在运行的 aiperf 进程组，最多等 3 秒
+            let _ = Command::new("kill")
+                .args(["-TERM", &child.id().to_string()])
+                .status();
+            let deadline = Instant::now() + Duration::from_secs(3);
+            while Instant::now() < deadline {
+                if let Ok(Some(_)) = child.try_wait() {
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(100));
+            }
         }
         let _ = child.kill();
         let _ = child.wait();

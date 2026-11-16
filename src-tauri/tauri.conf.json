@@ -37,6 +37,10 @@
     "resources": {
       "resources/engine/": "engine/"
     },
+    "macOS": {
+      "minimumSystemVersion": "11.0",
+      "signingIdentity": "-"
+    },
     "windows": {
       "webviewInstallMode": {
         "type": "offlineInstaller"

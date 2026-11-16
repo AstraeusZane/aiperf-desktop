@@ -767,6 +767,17 @@ def main():
     httpd = ThreadingHTTPServer((args.host, args.port), Handler)
     print(f"[{now_str()}] AIPerf Web Dashboard listening on http://{args.host}:{args.port}", flush=True)
     print(f"[{now_str()}] aiperf command: {' '.join(AIPERF_CMD)}", flush=True)
+
+    if not IS_WIN:
+        # 桌面客户端退出时发 SIGTERM：先结束仍在运行的 aiperf 进程组（它们在独立会话中，不会随父进程退出）
+        def _on_term(signum, frame):
+            for st in list(_RUNS.values()):
+                proc = st.get("proc")
+                if proc is not None and proc.poll() is None:
+                    kill_tree(proc.pid, graceful=False)
+            os._exit(0)
+        signal.signal(signal.SIGTERM, _on_term)
+
     httpd.serve_forever()
 
 
