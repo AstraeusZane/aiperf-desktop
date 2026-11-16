@@ -44,6 +44,12 @@ def kill(p):
 
 
 def main():
+    # -I 隔离模式会忽略 PYTHONUTF8 等环境变量；Windows 控制台默认 cp1252，打印中文会崩溃
+    for s in (sys.stdout, sys.stderr):
+        try:
+            s.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
     engine = Path(sys.argv[1]).resolve()
     here = Path(__file__).resolve().parent
     py = Path(sys.executable)

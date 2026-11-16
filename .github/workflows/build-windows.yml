@@ -43,7 +43,7 @@ jobs:
 
       # 2. 用即将打包的引擎，对本地 mock LLM 服务跑一次真实 aiperf 压测
       - name: Smoke test (real aiperf run on Windows)
-        run: src-tauri/resources/engine/python/python.exe -I scripts/smoke_test.py src-tauri/resources/engine
+        run: src-tauri/resources/engine/python/python.exe -I -X utf8 scripts/smoke_test.py src-tauri/resources/engine
 
       - name: Upload smoke logs
         if: always()
